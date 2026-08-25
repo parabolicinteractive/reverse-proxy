@@ -1,0 +1,41 @@
+name: chronicle-proxy
+services:
+    traefik:
+        # v3.6+ required: earlier versions pin Docker API 1.24, which
+        # OrbStack's daemon rejects (min 1.40)
+        image: traefik:v3.6
+        container_name: traefik
+        restart: unless-stopped
+        ports:
+            # HTTP entrypoint for every *.test dev site
+            - "80:80"
+            # Dashboard: http://localhost:8080
+            - "8080:8080"
+        volumes:
+            - ./traefik.yaml:/etc/traefik/traefik.yaml:ro
+            - /var/run/docker.sock:/var/run/docker.sock:ro
+        networks:
+            - reverse-proxy
+
+    dns:
+        # Wildcard DNS, so a new site needs no /etc/hosts entry. Runs in a
+        # container specifically so nobody has to install dnsmasq on their
+        # machine. Root inside the container owns port 53, which is also why
+        # this needs no elevated permission on the host.
+        build: ./dnsmasq
+        container_name: chronicle-dns
+        restart: unless-stopped
+        ports:
+            # Bound to loopback only. Never expose a resolver on the LAN.
+            - "127.0.0.1:53:53/udp"
+            - "127.0.0.1:53:53/tcp"
+        volumes:
+            - ./dnsmasq/dnsmasq.conf:/etc/dnsmasq.conf:ro
+        networks:
+            - reverse-proxy
+
+networks:
+    reverse-proxy:
+        # Not external here: `docker compose up` in THIS project creates the
+        # network; every other project declares it external and joins it.
+        name: reverse-proxy

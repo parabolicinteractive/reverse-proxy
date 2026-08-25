@@ -1,0 +1,23 @@
+# Traefik static configuration
+api:
+    dashboard: true
+    # Dashboard served plain on :8080. Local dev only — never expose this
+    # pattern on a real server.
+    insecure: true
+
+entryPoints:
+    web:
+        address: ":80"
+
+providers:
+    docker:
+        # Opt-in: a container is only routed if it sets traefik.enable=true
+        exposedByDefault: false
+        # Talk to containers over the shared reverse-proxy network
+        network: reverse-proxy
+        # A container that enables Traefik but sets no rule gets
+        # <service>.<project>.test derived from its compose labels.
+        defaultRule: Host(`{{ index .Labels "com.docker.compose.service" }}.{{ index .Labels "com.docker.compose.project" }}.test`)
+
+log:
+    level: INFO
