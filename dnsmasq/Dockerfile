@@ -1,5 +1,4 @@
-# Built from alpine rather than pulled from a third-party dnsmasq image, so the
-# only trust dependency is the distro itself.
+# Built from alpine so the only trust dependency is the distro itself.
 FROM alpine:3.20
 
 RUN apk add --no-cache dnsmasq

@@ -2,7 +2,7 @@ name: chronicle-proxy
 services:
     traefik:
         # v3.6+ required: earlier versions pin Docker API 1.24, which
-        # OrbStack's daemon rejects (min 1.40)
+        # current daemons reject.
         image: traefik:v3.6
         container_name: traefik
         restart: unless-stopped
@@ -19,9 +19,8 @@ services:
 
     dns:
         # Wildcard DNS, so a new site needs no /etc/hosts entry. Runs in a
-        # container specifically so nobody has to install dnsmasq on their
-        # machine. Root inside the container owns port 53, which is also why
-        # this needs no elevated permission on the host.
+        # container so nobody installs dnsmasq, and so port 53 needs no
+        # elevated permission on the host.
         build: ./dnsmasq
         container_name: chronicle-dns
         restart: unless-stopped
@@ -35,24 +34,20 @@ services:
             - reverse-proxy
 
     pgbouncer:
-        # Postgres front door. A client sends the database name in its startup
-        # packet, and pgbouncer forwards to whichever container serves that
-        # name, so one host port reaches every project's database. Traefik
-        # routes HTTP by Host header; this routes Postgres by database name,
-        # which is the only field the protocol offers before connecting.
+        # Postgres front door. Routes by database name, so one host port
+        # reaches every project's database.
         build: ./pgbouncer
         container_name: chronicle-pgbouncer
         restart: unless-stopped
         ports:
-            # Loopback only, like the resolver. This accepts any password, so
-            # the port binding is the security boundary.
+            # Loopback only. Any password is accepted, so this binding is
+            # the security boundary.
             - "127.0.0.1:6432:6432"
         volumes:
             - ./pgbouncer/pgbouncer.ini:/etc/pgbouncer/pgbouncer.ini:ro
             - pgbouncer-generated:/etc/pgbouncer/generated:ro
-        # The routing table is written by pgbouncer-gen, which may not have
-        # produced it yet on a cold start. pgbouncer treats a missing include
-        # as fatal, so wait for it rather than crash-loop.
+        # A missing include is fatal to pgbouncer, and pgbouncer-gen writes
+        # it. Wait for the file rather than crash-loop.
         entrypoint:
             - sh
             - -c
@@ -63,10 +58,8 @@ services:
             - reverse-proxy
 
     pgbouncer-gen:
-        # Watches Docker events and rewrites pgbouncer's routing table from
-        # container labels, then signals pgbouncer to reload. This is what
-        # makes a project self-registering: it declares one label and appears,
-        # the same way traefik.enable exposes an HTTP service.
+        # Rewrites pgbouncer's routing table from container labels on every
+        # Docker event, then signals pgbouncer to reload.
         image: nginxproxy/docker-gen:0.17.2
         container_name: chronicle-pgbouncer-gen
         restart: unless-stopped
@@ -77,7 +70,7 @@ services:
             - /etc/docker-gen/databases.tmpl
             - /etc/pgbouncer/generated/databases.ini
         volumes:
-            # docker-gen looks here by default, not /var/run.
+            # docker-gen looks for the socket here, not /var/run.
             - /var/run/docker.sock:/tmp/docker.sock:ro
             - ./pgbouncer/databases.tmpl:/etc/docker-gen/databases.tmpl:ro
             - pgbouncer-generated:/etc/pgbouncer/generated
@@ -85,11 +78,10 @@ services:
             - reverse-proxy
 
 volumes:
-    # Carries the generated routing table from pgbouncer-gen to pgbouncer.
+    # Carries the routing table from pgbouncer-gen to pgbouncer.
     pgbouncer-generated:
 
 networks:
     reverse-proxy:
-        # Not external here: `docker compose up` in THIS project creates the
-        # network; every other project declares it external and joins it.
+        # Created here. Every other project declares it external and joins.
         name: reverse-proxy

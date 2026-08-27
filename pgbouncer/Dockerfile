@@ -1,14 +1,12 @@
-# Built from alpine rather than pulled from a third-party pgbouncer image, so
-# the only trust dependency is the distro itself. Same reasoning as dnsmasq.
-# The result is around 10MB, of which pgbouncer is 1.5MB.
+# Built from alpine so the only trust dependency is the distro itself.
 FROM alpine:3.24
 
+# The package ships the binary and a sample config, no user.
 RUN apk add --no-cache pgbouncer \
     && adduser -S -D -H -h /var/lib/pgbouncer pgbouncer
 
-# pgbouncer refuses to run as root, and the alpine package ships only the
-# binary and a sample config, so the user is created above.
+# pgbouncer refuses to run as root.
 USER pgbouncer
 
-# Foreground, so Docker owns the process lifecycle.
+# -k equivalent: foreground, so Docker owns the process lifecycle.
 ENTRYPOINT ["pgbouncer", "/etc/pgbouncer/pgbouncer.ini"]

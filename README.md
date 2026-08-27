@@ -119,27 +119,21 @@ networks:
         external: true
 ```
 
-It then appears on `127.0.0.1:6432`, selectable by its compose project name.
-Stop the project and it disappears again. Nothing in this repository is edited
-to add one, which is what keeps it free of the names of the projects it serves.
+It appears on `127.0.0.1:6432`, selected by its compose project name, and
+disappears when the project stops. Set `chronicle.postgres.name` to choose a
+different name. Credentials come from the container's `POSTGRES_DB`,
+`POSTGRES_USER` and `POSTGRES_PASSWORD`; the container name is the host.
 
-The credentials come from the container's own `POSTGRES_DB`, `POSTGRES_USER`
-and `POSTGRES_PASSWORD`, and the container name is the upstream host. Set
-`chronicle.postgres.name` to choose a different selectable name.
+A client connects with any username and password, since the routing table
+carries the real credentials.
 
-A client connects with any username and any password: the routing table
-carries the real credentials, and the security boundary is the published port,
-bound to loopback exactly as the resolver is.
+Routing is by database name, which is what a Postgres client sends in its
+startup packet. A hostname cannot be used: TCP hostname matching needs TLS
+SNI, and Postgres negotiates TLS through its own pre-handshake, so no proxy
+sees a server name.
 
-This works because a Postgres client sends the database name in its startup
-packet, which is the only routing information available before a connection
-exists. Traefik routes HTTP by Host header; this routes Postgres by the one
-field the protocol offers. It is also why a hostname alone cannot do the job:
-TCP hostname matching needs TLS SNI, and Postgres negotiates TLS through its
-own pre-handshake, so no proxy ever sees a server name.
-
-Several projects can therefore each run Postgres on 5432 inside their own
-network, at the same time, without publishing a port or agreeing on one.
+Several projects can each run Postgres on 5432 inside their own network at the
+same time, none publishing a port.
 
 ## Naming
 
