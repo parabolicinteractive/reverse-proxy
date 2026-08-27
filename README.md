@@ -11,6 +11,8 @@ that attach to it own nothing here.
 |---|---|
 | `traefik` | Owns port 80. Routes by Host header to any container that opts in. Dashboard on 8080. |
 | `dns` | dnsmasq. Answers `*.test` with 127.0.0.1, forwards everything else upstream. |
+| `pgbouncer` | Postgres front door on 127.0.0.1:6432. Routes by database name to whichever container serves it. |
+| `pgbouncer-gen` | Watches Docker events and rewrites pgbouncer's routing table from container labels. |
 
 DNS runs in a container, so no local dnsmasq installation is required and port 53
 needs no elevated permission on the host.
@@ -99,6 +101,45 @@ networks:
 
 Traefik reaches the container over the shared network, so the site needs no published
 ports.
+
+## Adding a database
+
+A Postgres container joins by declaring one label and the shared network:
+
+```yaml
+services:
+    db:
+        labels:
+            chronicle.postgres.expose: "true"
+        networks:
+            - default
+            - reverse-proxy
+networks:
+    reverse-proxy:
+        external: true
+```
+
+It then appears on `127.0.0.1:6432`, selectable by its compose project name.
+Stop the project and it disappears again. Nothing in this repository is edited
+to add one, which is what keeps it free of the names of the projects it serves.
+
+The credentials come from the container's own `POSTGRES_DB`, `POSTGRES_USER`
+and `POSTGRES_PASSWORD`, and the container name is the upstream host. Set
+`chronicle.postgres.name` to choose a different selectable name.
+
+A client connects with any username and any password: the routing table
+carries the real credentials, and the security boundary is the published port,
+bound to loopback exactly as the resolver is.
+
+This works because a Postgres client sends the database name in its startup
+packet, which is the only routing information available before a connection
+exists. Traefik routes HTTP by Host header; this routes Postgres by the one
+field the protocol offers. It is also why a hostname alone cannot do the job:
+TCP hostname matching needs TLS SNI, and Postgres negotiates TLS through its
+own pre-handshake, so no proxy ever sees a server name.
+
+Several projects can therefore each run Postgres on 5432 inside their own
+network, at the same time, without publishing a port or agreeing on one.
 
 ## Naming
 

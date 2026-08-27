@@ -34,6 +34,60 @@ services:
         networks:
             - reverse-proxy
 
+    pgbouncer:
+        # Postgres front door. A client sends the database name in its startup
+        # packet, and pgbouncer forwards to whichever container serves that
+        # name, so one host port reaches every project's database. Traefik
+        # routes HTTP by Host header; this routes Postgres by database name,
+        # which is the only field the protocol offers before connecting.
+        build: ./pgbouncer
+        container_name: chronicle-pgbouncer
+        restart: unless-stopped
+        ports:
+            # Loopback only, like the resolver. This accepts any password, so
+            # the port binding is the security boundary.
+            - "127.0.0.1:6432:6432"
+        volumes:
+            - ./pgbouncer/pgbouncer.ini:/etc/pgbouncer/pgbouncer.ini:ro
+            - pgbouncer-generated:/etc/pgbouncer/generated:ro
+        # The routing table is written by pgbouncer-gen, which may not have
+        # produced it yet on a cold start. pgbouncer treats a missing include
+        # as fatal, so wait for it rather than crash-loop.
+        entrypoint:
+            - sh
+            - -c
+            - 'until [ -f /etc/pgbouncer/generated/databases.ini ]; do sleep 0.2; done; exec pgbouncer /etc/pgbouncer/pgbouncer.ini'
+        depends_on:
+            - pgbouncer-gen
+        networks:
+            - reverse-proxy
+
+    pgbouncer-gen:
+        # Watches Docker events and rewrites pgbouncer's routing table from
+        # container labels, then signals pgbouncer to reload. This is what
+        # makes a project self-registering: it declares one label and appears,
+        # the same way traefik.enable exposes an HTTP service.
+        image: nginxproxy/docker-gen:0.17.2
+        container_name: chronicle-pgbouncer-gen
+        restart: unless-stopped
+        command:
+            - -watch
+            - -notify-sighup
+            - chronicle-pgbouncer
+            - /etc/docker-gen/databases.tmpl
+            - /etc/pgbouncer/generated/databases.ini
+        volumes:
+            # docker-gen looks here by default, not /var/run.
+            - /var/run/docker.sock:/tmp/docker.sock:ro
+            - ./pgbouncer/databases.tmpl:/etc/docker-gen/databases.tmpl:ro
+            - pgbouncer-generated:/etc/pgbouncer/generated
+        networks:
+            - reverse-proxy
+
+volumes:
+    # Carries the generated routing table from pgbouncer-gen to pgbouncer.
+    pgbouncer-generated:
+
 networks:
     reverse-proxy:
         # Not external here: `docker compose up` in THIS project creates the
