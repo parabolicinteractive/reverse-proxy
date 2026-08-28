@@ -1,7 +1,7 @@
 # Traefik static configuration
 api:
     dashboard: true
-    # Dashboard served plain on :8080. Local dev only — never expose this
+    # Dashboard served plain on :8080. Local dev only, never expose this
     # pattern on a real server.
     insecure: true
 
