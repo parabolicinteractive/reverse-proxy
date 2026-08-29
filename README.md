@@ -1,7 +1,12 @@
-# reverse-proxy
+# chronicle-proxy
 
 Local development front door. Routes every `*.test` hostname to the right container,
 and answers DNS for those hostnames so no hosts-file entry is needed.
+
+The Docker network it creates is called `reverse-proxy`, and that is the name a
+project joins. The repository and the compose project are `chronicle-proxy`; the
+network keeps the generic name because it is the one every other repository has to
+write down.
 
 Chronicle infrastructure. Any containerized project joins this stack, wherever that
 project's repository lives. This one owns port 80 and the shared network; the projects
