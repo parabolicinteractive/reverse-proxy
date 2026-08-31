@@ -1,4 +1,4 @@
-name: chronicle-proxy
+name: reverse-proxy
 services:
     traefik:
         # v3.6+ required: earlier versions pin Docker API 1.24, which
@@ -22,7 +22,7 @@ services:
         # container so nobody installs dnsmasq, and so port 53 needs no
         # elevated permission on the host.
         build: ./dnsmasq
-        container_name: chronicle-dns
+        container_name: reverse-proxy-dns
         restart: unless-stopped
         ports:
             # Bound to loopback only. Never expose a resolver on the LAN.
@@ -37,7 +37,7 @@ services:
         # Postgres front door. Routes by database name, so one host port
         # reaches every project's database.
         build: ./pgbouncer
-        container_name: chronicle-pgbouncer
+        container_name: reverse-proxy-pgbouncer
         restart: unless-stopped
         ports:
             # Loopback only. Any password is accepted, so this binding is
@@ -61,12 +61,12 @@ services:
         # Rewrites pgbouncer's routing table from container labels on every
         # Docker event, then signals pgbouncer to reload.
         image: nginxproxy/docker-gen:0.17.2
-        container_name: chronicle-pgbouncer-gen
+        container_name: reverse-proxy-pgbouncer-gen
         restart: unless-stopped
         command:
             - -watch
             - -notify-sighup
-            - chronicle-pgbouncer
+            - reverse-proxy-pgbouncer
             - /etc/docker-gen/databases.tmpl
             - /etc/pgbouncer/generated/databases.ini
         volumes:

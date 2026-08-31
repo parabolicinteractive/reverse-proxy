@@ -1,15 +1,10 @@
-# chronicle-proxy
+# reverse-proxy
 
 Local development front door. Routes every `*.test` hostname to the right container,
 and answers DNS for those hostnames so no hosts-file entry is needed.
 
-The Docker network it creates is called `reverse-proxy`, and that is the name a
-project joins. The repository and the compose project are `chronicle-proxy`; the
-network keeps the generic name because it is the one every other repository has to
-write down.
-
-Chronicle infrastructure. Any containerized project joins this stack, wherever that
-project's repository lives. This one owns port 80 and the shared network; the projects
+Shared local infrastructure. Any containerized project joins this stack, wherever
+that project's repository lives. This one owns port 80 and the shared network; the projects
 that attach to it own nothing here.
 
 | Service | Does |
@@ -115,7 +110,7 @@ A Postgres container joins by declaring one label and the shared network:
 services:
     db:
         labels:
-            chronicle.postgres.expose: "true"
+            reverse-proxy.postgres.expose: "true"
         networks:
             - default
             - reverse-proxy
@@ -125,7 +120,7 @@ networks:
 ```
 
 It appears on `127.0.0.1:6432`, selected by its compose project name, and
-disappears when the project stops. Set `chronicle.postgres.name` to choose a
+disappears when the project stops. Set `reverse-proxy.postgres.name` to choose a
 different name. Credentials come from the container's `POSTGRES_DB`,
 `POSTGRES_USER` and `POSTGRES_PASSWORD`; the container name is the host.
 
