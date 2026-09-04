@@ -79,6 +79,12 @@ Where NRPT is unavailable, set 127.0.0.1 as the machine's primary DNS server. Th
 container forwards anything it is not authoritative for, so other names still
 resolve, and all DNS depends on the container running.
 
+@note Unverified: whether `.test` names resolve from inside a WSL 2 terminal once
+the NRPT rule is set on the Windows side. WSL's DNS path has changed across
+releases. Check with `getent hosts anything.test` from WSL before assuming a site
+is broken there. If it fails, a `127.0.0.1 <site>.test` line in WSL's `/etc/hosts`
+is the fix, and the confirmed answer replaces this note.
+
 ## Adding a site
 
 Join the network and enable Traefik in the project's compose file, or in a local
