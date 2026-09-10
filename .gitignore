@@ -1,2 +1,7 @@
 .DS_Store
 docker-compose.override.yaml
+
+# Exported copies of the public authority, for Firefox or the Windows trust
+# store. Not secret, but not repository content either.
+rootCA.crt
+rootCA.pem

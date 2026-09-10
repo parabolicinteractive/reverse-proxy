@@ -8,8 +8,18 @@ api:
 entryPoints:
     web:
         address: ":80"
+    websecure:
+        address: ":443"
+        http:
+            # A router with no entryPoints of its own is attached to every
+            # entryPoint, so a site gets HTTPS without changing a label.
+            tls: {}
 
 providers:
+    file:
+        # The certificate, written by the tls service. Watched by default, so
+        # a reissue is picked up without a restart.
+        directory: /etc/traefik/dynamic
     docker:
         # Opt-in: a container is only routed if it sets traefik.enable=true
         exposedByDefault: false

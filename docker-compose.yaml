@@ -9,10 +9,33 @@ services:
         ports:
             # HTTP entrypoint for every *.test dev site
             - "80:80"
+            # HTTPS entrypoint. Plain HTTP keeps working; nothing redirects.
+            - "443:443"
             # Dashboard: http://localhost:8080
             - "8080:8080"
         volumes:
             - ./traefik.yaml:/etc/traefik/traefik.yaml:ro
+            # Read only, and the authority is not mounted here, so the
+            # signing key is not on Traefik's filesystem. That is a smaller
+            # claim than isolation: the Docker socket below reaches the whole
+            # daemon, and :ro on a socket does not make the API read only.
+            - dynamic:/etc/traefik/dynamic:ro
+            - /var/run/docker.sock:/var/run/docker.sock:ro
+        networks:
+            - reverse-proxy
+
+    tls:
+        # Issues one certificate per .test hostname Traefik routes, one file
+        # per hostname. Both volumes are runtime state, not repository
+        # content: the authority is generated here, is particular to this
+        # machine, and its key never touches the working tree. bin/trust
+        # reads it out of this container.
+        build: ./tls
+        container_name: reverse-proxy-tls
+        restart: unless-stopped
+        volumes:
+            - certs:/certs
+            - dynamic:/dynamic
             - /var/run/docker.sock:/var/run/docker.sock:ro
         networks:
             - reverse-proxy
@@ -80,6 +103,17 @@ services:
 volumes:
     # Carries the routing table from pgbouncer-gen to pgbouncer.
     pgbouncer-generated:
+    # The certificate authority. Only the tls service mounts it. Declared
+    # external so `docker compose down -v` cannot take it: losing it means
+    # every certificate is reissued under an authority this machine has never
+    # heard of, and every .test site warns until bin/trust runs again.
+    # Create it once: docker volume create reverse-proxy-certs
+    certs:
+        external: true
+        name: reverse-proxy-certs
+    # One certificate per hostname, written by tls and read by traefik. Left
+    # managed: losing it costs ten seconds of reissue and nothing else.
+    dynamic:
 
 networks:
     reverse-proxy:
