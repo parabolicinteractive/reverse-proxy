@@ -6,12 +6,12 @@ services:
         container_name: traefik
         restart: unless-stopped
         ports:
-            # HTTP entrypoint for every *.test dev site
-            - "80:80"
+            # Host-only access, including routes to project dashboards.
+            - "127.0.0.1:80:80"
             # HTTPS entrypoint. Plain HTTP keeps working; nothing redirects.
-            - "443:443"
+            - "127.0.0.1:443:443"
             # Dashboard: http://localhost:8080
-            - "8080:8080"
+            - "127.0.0.1:8080:8080"
         volumes:
             - ./traefik.yaml:/etc/traefik/traefik.yaml:ro
             # CA key is not mounted here, but Docker socket access can read it.

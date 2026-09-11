@@ -4,6 +4,9 @@ Shared local DNS, HTTPS and routing for containerized projects anywhere on the
 machine. This stack owns ports 80/443 and the `reverse-proxy` Docker network;
 projects opt in through their own configuration.
 
+Published ports bind to loopback. Sites and dashboards are accessible from
+this machine; other devices use the project's own optional LAN access.
+
 | Service | Does |
 |---|---|
 | `traefik` | Owns ports 80 and 443. Routes by Host header to any container that opts in. Dashboard on 8080. |
