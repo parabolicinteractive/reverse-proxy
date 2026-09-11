@@ -1,8 +1,7 @@
 # Traefik static configuration
 api:
     dashboard: true
-    # Dashboard served plain on :8080. Local dev only, never expose this
-    # pattern on a real server.
+    # Unauthenticated dashboard on :8080. Local development only.
     insecure: true
 
 entryPoints:
@@ -11,14 +10,12 @@ entryPoints:
     websecure:
         address: ":443"
         http:
-            # A router with no entryPoints of its own is attached to every
-            # entryPoint, so a site gets HTTPS without changing a label.
+            # Routers without explicit entryPoints also receive HTTPS.
             tls: {}
 
 providers:
     file:
-        # The certificate, written by the tls service. Watched by default, so
-        # a reissue is picked up without a restart.
+        # Watch certificates written by tls; updates need no restart.
         directory: /etc/traefik/dynamic
     docker:
         # Opt-in: a container is only routed if it sets traefik.enable=true

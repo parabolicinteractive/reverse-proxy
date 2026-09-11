@@ -1,13 +1,11 @@
 #!/bin/sh
-# Puts this machine's local certificate authority into its trust store, so
-# https://<site>.test is trusted the way any other site is. Run once.
+# Install this machine's local CA into its trust store. Run once.
 set -eu
 
 ROOT=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
 cd "$ROOT"
 
-# WSL looks like Linux to uname, but the browser there is a Windows program
-# reading a different trust store, so this command is only half the job.
+# WSL and Windows browsers use separate trust stores.
 is_wsl() {
     grep -qi microsoft /proc/sys/kernel/osrelease 2>/dev/null
 }
@@ -15,8 +13,7 @@ is_wsl() {
 CA=$(mktemp)
 trap 'rm -f "$CA"' EXIT INT TERM
 
-# The authority lives in a Docker volume, not the working tree, so its key
-# never sits in a directory that might be archived or synced by accident.
+# Export only the public CA; its key stays in the Docker volume.
 if ! docker compose exec -T tls cat /certs/rootCA.pem >"$CA" 2>/dev/null || [ ! -s "$CA" ]; then
     echo "Could not read the authority from the tls service."
     echo "Start the stack first, then run this again:"
