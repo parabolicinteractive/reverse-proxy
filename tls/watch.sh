@@ -1,84 +1,81 @@
 #!/bin/sh
-# Keeps one certificate per .test hostname Traefik is routing, as one file per
-# hostname in the directory Traefik watches. Adding, removing or renewing one
-# changes that directory, which is what makes Traefik reload.
+# Maintain one certificate file per routed .test hostname.
+# Traefik watches the directory for additions, renewals and removals.
 set -eu
 
 export CAROOT=/certs
 DYNAMIC=/dynamic
 
-# mkcert issues leaf certificates lasting about 27 months. Replacing one a
-# month out keeps a quiet machine from waking up to an expired certificate.
+# Renew within 30 days of expiry, including on otherwise idle machines.
 RENEW_WITHIN=2592000
 
-# mkcert creates the authority the first time it is asked for anything, which
-# would otherwise be the first time a project appears. bin/trust needs it
-# before then, on a machine where this stack is all that is running.
+# Create the CA before any project starts so bin/trust.sh can export it.
 ensure_authority() {
-    [ -f /certs/rootCA.pem ] && return 0
+    if [ -f "$CAROOT/rootCA.pem" ]; then
+        return 0
+    fi
 
-    # .invalid is reserved by RFC 6761 and never resolves, so this throwaway
-    # name cannot collide with anything. Only the authority is kept.
+    # Bootstrap with a reserved .invalid name; keep only the CA.
     mkcert -cert-file /tmp/init.crt -key-file /tmp/init.key init.invalid >/dev/null 2>&1
     rm -f /tmp/init.crt /tmp/init.key
     echo "created the certificate authority"
 }
 
-# Every hostname Traefik is routing, one per line. Returns non-zero when
-# Docker cannot be asked, which must never be mistaken for nothing running.
+# Read key=value labels from stdin; emit requested hostnames, one per line.
+names_from_labels() {
+    labels=$(cat)
+
+    # Extract Host() values with backticks or either quote style.
+    # Allow whitespace and multiple matches; exclude HostRegexp and HostSNI.
+    printf '%s\n' "$labels" |
+        grep -E '^traefik\.http\.routers\.[^=]+\.rule=' |
+        grep -oE "Host\([[:space:]]*[\`\"'][^\`\"']+[\`\"'][[:space:]]*\)" |
+        sed -E "s/^Host\([[:space:]]*[\`\"']//; s/[\`\"'][[:space:]]*\)\$//" || true
+
+    # defaultRule applies to each router with a missing or empty rule,
+    # and to containers with no router labels.
+    routers=$(printf '%s\n' "$labels" |
+        sed -n 's/^traefik\.http\.routers\.\([^.]*\)\..*/\1/p' | sort -u)
+    derive=no
+    if [ -z "$routers" ]; then
+        derive=yes
+    else
+        for router in $routers; do
+            if ! printf '%s\n' "$labels" |
+                grep -q "^traefik\.http\.routers\.$router\.rule=."; then
+                derive=yes
+            fi
+        done
+    fi
+
+    if [ "$derive" = yes ]; then
+        service=$(printf '%s\n' "$labels" | sed -n 's/^com\.docker\.compose\.service=//p')
+        project=$(printf '%s\n' "$labels" | sed -n 's/^com\.docker\.compose\.project=//p')
+        if [ -n "$service" ] && [ -n "$project" ]; then
+            echo "$service.$project.test"
+        fi
+    fi
+}
+
+# Emit routed names; distinguish Docker failures from an empty result.
 discover() {
     ids=$(docker ps --filter label=traefik.enable=true --format '{{.ID}}') || return 1
 
     for id in $ids; do
         labels=$(docker inspect --format \
             '{{range $k, $v := .Config.Labels}}{{$k}}={{$v}}{{"\n"}}{{end}}' "$id") || return 1
-
-        # A rule may hold more than one Host(). Traefik accepts backticks,
-        # double quotes or single quotes around the value, and tolerates
-        # spaces inside the brackets.
-        printf '%s\n' "$labels" |
-            grep -E '^traefik\.http\.routers\.[^=]+\.rule=' |
-            grep -oE "Host\([[:space:]]*[\`\"'][^\`\"']+[\`\"'][[:space:]]*\)" |
-            sed -E "s/^Host\([[:space:]]*[\`\"']//; s/[\`\"'][[:space:]]*\)\$//" || true
-
-        # Traefik applies its defaultRule per router, not per container, and
-        # treats an empty rule as none, hence matching on a value below. A
-        # container with no router labels at all gets one too.
-        routers=$(printf '%s\n' "$labels" |
-            sed -n 's/^traefik\.http\.routers\.\([^.]*\)\..*/\1/p' | sort -u)
-        derive=no
-        if [ -z "$routers" ]; then
-            derive=yes
-        else
-            for router in $routers; do
-                if ! printf '%s\n' "$labels" |
-                    grep -q "^traefik\.http\.routers\.$router\.rule=."; then
-                    derive=yes
-                fi
-            done
-        fi
-
-        if [ "$derive" = yes ]; then
-            service=$(printf '%s\n' "$labels" | sed -n 's/^com\.docker\.compose\.service=//p')
-            project=$(printf '%s\n' "$labels" | sed -n 's/^com\.docker\.compose\.project=//p')
-            if [ -n "$service" ] && [ -n "$project" ]; then
-                echo "$service.$project.test"
-            fi
-        fi
+        printf '%s\n' "$labels" | names_from_labels
     done
 
     return 0
 }
 
-# A local authority vouching for a real domain is not something to hand out,
-# and Traefik would not be serving one here anyway.
+# Limit issuance to valid .test hostnames.
 only_test_names() {
     grep -Ei '^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*\.test$' || true
 }
 
-# The certificate is the file's contents rather than a path it points at, so
-# that every file in this directory is self-contained and replacing one is a
-# single atomic rename.
+# Inline the certificate and key for a self-contained, atomic replacement.
 issue() {
     mkcert -cert-file /tmp/cert -key-file /tmp/key "$1" >/dev/null
     {
@@ -103,8 +100,7 @@ sync_certificates() {
     mkdir -p "$DYNAMIC"
     ensure_authority
 
-    # A failed query must never read as an empty one. Pruning against a
-    # partial list would delete certificates that are still in use.
+    # Preserve certificates if discovery fails; partial results must not prune.
     if ! snapshot=$(discover); then
         echo "could not ask Docker what is running; leaving certificates alone" >&2
         return 0
@@ -129,10 +125,13 @@ sync_certificates() {
     return 0
 }
 
-# Polled rather than event-driven: a pass that changes nothing costs a few
-# Docker queries, and polling also catches expiry on a machine where no
-# container has started in months.
-while true; do
-    sync_certificates
-    sleep 10
-done
+# Polling catches expiry even without container events.
+main() {
+    while true; do
+        sync_certificates
+        sleep 10
+    done
+}
+
+# Tests source the functions without starting the loop.
+[ -n "${TLS_WATCH_SOURCED:-}" ] || main
