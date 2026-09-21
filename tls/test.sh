@@ -1,6 +1,6 @@
 #!/bin/sh
 # Test hostname selection and Docker failures with isolated fixtures.
-# Run with bin/test.sh; no live containers or certificates are used.
+# Run with bin/test; no live containers or certificates are used.
 set -eu
 
 TLS_WATCH_SOURCED=1 . /usr/local/bin/watch.sh

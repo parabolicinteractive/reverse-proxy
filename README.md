@@ -92,7 +92,7 @@ configuration self-contained.
 Trust this machine's CA once:
 
 ```bash
-./bin/trust.sh
+./bin/trust
 ```
 
 The script displays the CA and requests confirmation before installing it with
@@ -158,7 +158,7 @@ DNS forwards other domains too, but makes all DNS depend on this container.
 **3. Trust the authority**, from the WSL terminal:
 
 ```bash
-./bin/trust.sh
+./bin/trust
 ```
 
 The script installs into WSL's trust store and prints a PowerShell command
@@ -248,3 +248,9 @@ collisions with registered domains.
 
 Avoid `.local` (mDNS), `.dev` (public and HSTS-preloaded), two-letter TLDs
 (country codes), and `.localhost` (inconsistent system resolver support).
+
+## Scripts
+
+A script a person types has no extension: `bin/trust`, `bin/test`. A script a
+program invokes ends in `.sh`: `tls/watch.sh` and `tls/test.sh`, run inside
+the image. This follows the [Google Shell Style Guide](https://google.github.io/styleguide/shellguide.html#file-extensions).

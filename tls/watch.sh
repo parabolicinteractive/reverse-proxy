@@ -9,7 +9,7 @@ DYNAMIC=/dynamic
 # Renew within 30 days of expiry, including on otherwise idle machines.
 RENEW_WITHIN=2592000
 
-# Create the CA before any project starts so bin/trust.sh can export it.
+# Create the CA before any project starts so bin/trust can export it.
 ensure_authority() {
     if [ -f "$CAROOT/rootCA.pem" ]; then
         return 0

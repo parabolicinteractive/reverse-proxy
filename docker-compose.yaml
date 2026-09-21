@@ -23,7 +23,7 @@ services:
 
     tls:
         # Issues per-host .test certificates. The machine-specific CA and
-        # certificates stay in volumes; bin/trust.sh exports the public CA.
+        # certificates stay in volumes; bin/trust exports the public CA.
         build: ./tls
         container_name: reverse-proxy-tls
         restart: unless-stopped
