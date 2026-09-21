@@ -17,24 +17,45 @@ this machine; other devices use the project's own optional LAN access.
 
 No host dnsmasq installation is required.
 
-## Run
+## Quick start
 
 ```bash
 docker volume create reverse-proxy-certs   # once per machine
 docker compose up -d
 ```
 
-The external volume holds this machine's CA and survives `docker compose down -v`.
-Create it before startup; Compose fails if it is missing.
+Tell the machine to ask this stack for `.test` names, once. macOS:
 
-This stack creates the shared `reverse-proxy` network. Start it before any site that
-declares that network as external.
+```bash
+sudo mkdir -p /etc/resolver
+sudo sh -c 'echo "nameserver 127.0.0.1" > /etc/resolver/test'
+```
 
-Dashboard: <http://localhost:8080>
+Linux and Windows have their own commands under Host setup below.
+
+Any project that joins the `reverse-proxy` network is now at
+`http://<app>.test`. For `https://` as well, trust this machine's certificate
+authority, once:
+
+```bash
+bin/trust
+```
+
+Start this stack before any project that uses it, and check
+<http://localhost:8080> to see what Traefik is routing.
+
+---
+
+**Everything below is reference.** DNS on each platform, how HTTPS and the
+authority work, the full Windows path, and how a project adds a site or a
+database.
 
 ## Host setup
 
 Configure the host to resolve `.test` through this stack, once per machine.
+The external volume created in the quick start holds this machine's CA and
+survives `docker compose down -v`; Compose refuses to start without it. This
+stack creates the shared `reverse-proxy` network, so it starts first.
 
 ### macOS
 
@@ -92,7 +113,7 @@ configuration self-contained.
 Trust this machine's CA once:
 
 ```bash
-./bin/trust
+bin/trust
 ```
 
 The script displays the CA and requests confirmation before installing it with
@@ -158,7 +179,7 @@ DNS forwards other domains too, but makes all DNS depend on this container.
 **3. Trust the authority**, from the WSL terminal:
 
 ```bash
-./bin/trust
+bin/trust
 ```
 
 The script installs into WSL's trust store and prints a PowerShell command
